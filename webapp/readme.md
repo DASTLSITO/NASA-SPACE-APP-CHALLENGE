@@ -1,0 +1,3 @@
+#iniciar proyecto
+
+npx serve
