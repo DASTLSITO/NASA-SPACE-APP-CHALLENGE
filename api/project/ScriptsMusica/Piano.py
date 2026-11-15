@@ -39,16 +39,16 @@ def GenerarPista(secuencia: List[List[int]]):
         acorde = CrearAcorde(*nt)
         try:
             if acorde:
-                compas.place_notes(acorde, 4)
+                compas.place_notes(acorde, 2)
             else:
-                compas.place_notes(None, 4)
+                compas.place_notes(None, 2)
         except Exception:
             pista.add_bar(compas)
             compas = Bar("C", (4, 4))
             if acorde:
-                compas.place_notes(acorde, 4)
+                compas.place_notes(acorde, 2)
             else:
-                compas.place_notes(None, 4)
+                compas.place_notes(None, 2)
         
     pista.add_bar(compas)
 
