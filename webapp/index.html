@@ -1,15 +1,63 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mi Proyecto Web</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#101a31">
+  <meta name="description" content="Listen to Earth science data through accessible, interactive sonification.">
+  <title>Earth Jukebox — listen to our planet</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 <body>
-  <h1>¡Hola Mundo!</h1>
-  <button id="miBoton">Haz clic</button>
+  <a class="skip-link" href="#main">Skip to the jukebox</a>
+  <main id="main" class="jukebox-shell">
+    <header class="masthead">
+      <a class="brand" href="#main" aria-label="Earth Jukebox home"><span class="brand-mark" aria-hidden="true">✳</span><span>EARTH<br>JUKEBOX</span></a>
+      <p class="tagline">A new way to hear our changing planet</p>
+      <button class="motion-toggle" id="motion-toggle" type="button" aria-pressed="false">Reduce motion: off</button>
+    </header>
 
-  <script src="app.js"></script>
+    <section class="machine" aria-label="Earth Jukebox">
+      <div class="machine-top"><span class="ornament" aria-hidden="true">✦ &nbsp; ✧ &nbsp; ✦</span><p>THE SOUND OF EARTH</p><span class="ornament" aria-hidden="true">✦ &nbsp; ✧ &nbsp; ✦</span></div>
+      <div class="screen-bezel" id="screen-bezel">
+        <div class="screen-heading"><span class="live-dot" aria-hidden="true"></span><span id="screen-label">NOW PLAYING · CHOOSE A DATASET</span><span class="screen-index" id="screen-index">00</span><button id="return-button" class="return-button" type="button">↙ Return to jukebox</button></div>
+        <div class="visual-stage" id="visual-stage" aria-label="Visualization display">
+          <video id="co-video" class="data-video" src="resources/carbon_monoxide.mp4" muted loop playsinline preload="metadata" aria-label="Carbon monoxide satellite visualization"></video>
+          <canvas id="data-canvas" role="img" aria-label="Interactive scientific data visualization. Choose a region to hear its value."></canvas>
+          <div class="stage-placeholder" id="stage-placeholder"><span class="placeholder-star" aria-hidden="true">✳</span><strong>Your planet, in sound.</strong><span>Choose a record below to begin.</span></div>
+          <div class="stage-caption" id="stage-caption" aria-live="polite">Select a dataset to hear it</div>
+          <div class="focus-controls" aria-label="Focused visualization controls">
+            <label for="focus-zone">Zone<select id="focus-zone" disabled><option value="all">Whole frame</option><option value="north">North</option><option value="center">Center</option><option value="south">South</option></select></label>
+            <div class="focus-colors" role="group" aria-label="Listen to a color"><button type="button" data-focus-color="all" aria-pressed="true" disabled>All colors</button><button type="button" data-focus-color="warm" aria-pressed="false" disabled>Warm</button><button type="button" data-focus-color="cool" aria-pressed="false" disabled>Cool</button></div>
+            <button class="focus-play" id="focus-play" type="button" disabled>Ⅱ Pause audio</button>
+          </div>
+        </div>
+        <div class="screen-footer"><span>EARTH OBSERVATION DATA</span><span id="data-readout">WAITING FOR INPUT</span></div>
+      </div>
+
+      <section class="records" aria-labelledby="records-title">
+        <div class="section-label"><span class="section-number">01</span><div><h1 id="records-title">Choose a record</h1><p>Select a visualization to tune in. Audio begins with your selection.</p></div></div>
+        <div class="record-grid" role="group" aria-label="Earth observation visualizations">
+          <button class="record-card" type="button" data-dataset="carbon" aria-pressed="false"><span class="record-number">A1</span><span class="record-swatch carbon-swatch" aria-hidden="true">◉</span><span class="record-copy"><strong>Carbon monoxide</strong><small>Atmospheric trace · satellite</small></span><span class="record-play" aria-hidden="true">▶</span></button>
+          <button class="record-card" type="button" data-dataset="wildfire" aria-pressed="false"><span class="record-number">A2</span><span class="record-swatch fire-swatch" aria-hidden="true">♨</span><span class="record-copy"><strong>Wildfire smoke</strong><small>Aerosol spread · sample data</small></span><span class="record-play" aria-hidden="true">▶</span></button>
+          <button class="record-card" type="button" data-dataset="ocean" aria-pressed="false"><span class="record-number">A3</span><span class="record-swatch ocean-swatch" aria-hidden="true">≈</span><span class="record-copy"><strong>Ocean temperature</strong><small>Sea surface · sample data</small></span><span class="record-play" aria-hidden="true">▶</span></button>
+        </div>
+      </section>
+
+      <section class="listening-panel" aria-labelledby="listening-title">
+        <div class="section-label compact"><span class="section-number">02</span><div><h2 id="listening-title">Shape your listening</h2><p>Choose a color or zone to isolate its data values.</p></div></div>
+        <div class="controls-row">
+          <div class="zone-control"><label for="zone-select">Listen to a zone</label><select id="zone-select" disabled><option value="all">Whole frame</option><option value="north">North</option><option value="center">Center</option><option value="south">South</option></select></div>
+          <div class="color-control"><span class="control-label">Listen to a color</span><div class="color-buttons" role="group" aria-label="Filter by color"><button type="button" class="color-button" data-color="all" aria-pressed="true" disabled><span class="color-dot all-dot" aria-hidden="true"></span>All</button><button type="button" class="color-button" data-color="warm" aria-pressed="false" disabled><span class="color-dot warm-dot" aria-hidden="true"></span>Warm</button><button type="button" class="color-button" data-color="cool" aria-pressed="false" disabled><span class="color-dot cool-dot" aria-hidden="true"></span>Cool</button></div></div>
+          <div class="transport" aria-label="Playback controls"><button class="transport-button" id="play-toggle" type="button" disabled aria-label="Pause audio">Ⅱ</button><button class="transport-button" id="restart-button" type="button" disabled aria-label="Restart visualization">↺</button><label class="volume-control" for="volume"><span>Volume</span><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume"></label></div>
+        </div>
+        <div class="mapping-note"><span aria-hidden="true">♪</span><p><strong>How to listen:</strong> data values map to a gentle pentatonic scale. Higher readings sound brighter and faster; anomalies add a soft bell-like texture.</p></div>
+      </section>
+      <footer class="machine-footer"><span>DESIGNED FOR EVERY LISTENER</span><span>USE TAB + ENTER TO EXPLORE</span><span>WEB AUDIO · NO INSTALL</span></footer>
+    </section>
+    <p class="page-note">An accessible experiment in listening to Earth observation data. Sample visualizations are illustrative.</p>
+    <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+  </main>
 </body>
 </html>
