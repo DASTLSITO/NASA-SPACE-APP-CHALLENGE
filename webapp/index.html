@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#101a31">
   <meta name="description" content="Listen to Earth science data through accessible, interactive sonification.">
-  <title>Earth Jukebox — listen to our planet</title>
+  <title>Earthmonizer — listen to our planet</title>
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
@@ -20,16 +20,22 @@
         <div class="visual-stage" id="visual-stage" aria-label="Visualization display">
           <video id="co-video" class="data-video" src="resources/carbon_monoxide.mp4" muted loop playsinline preload="metadata" aria-label="Carbon monoxide satellite visualization"></video>
           <canvas id="data-canvas" role="img" aria-label="Interactive scientific data visualization. Choose a region to hear its value."></canvas>
-          <div class="stage-placeholder" id="stage-placeholder"><span class="placeholder-star" aria-hidden="true">✳</span><strong>Your planet, in sound.</strong><span>Choose a record below to begin.</span></div>
+          <canvas id="scan-canvas" aria-hidden="true"></canvas>
+          <div class="stage-placeholder" id="stage-placeholder"><strong>Nothing playing yet</strong><span>Press one of the orange keys to start.</span></div>
           <div class="stage-caption" id="stage-caption" aria-live="polite">Select a dataset to hear it</div>
           <div class="focus-controls" aria-label="Focused visualization controls">
             <label for="focus-zone">Zone<select id="focus-zone" disabled><option value="all">Whole frame</option><option value="north">North</option><option value="center">Center</option><option value="south">South</option></select></label>
             <div class="focus-colors" role="group" aria-label="Listen to a color"><button type="button" data-focus-color="all" aria-pressed="true" disabled>All colors</button><button type="button" data-focus-color="warm" aria-pressed="false" disabled>Warm</button><button type="button" data-focus-color="cool" aria-pressed="false" disabled>Cool</button></div>
-            <button class="focus-play" id="focus-play" type="button" disabled>Ⅱ Pause audio</button>
+            <input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="Timeline position" disabled><button class="focus-play" id="focus-play" type="button" disabled>Ⅱ Pause audio</button>
           </div>
         </div>
         <div class="screen-footer"><span>EARTH OBSERVATION DATA</span><span id="data-readout">WAITING FOR INPUT</span></div>
       </div>
+
+      <canvas id="trace-canvas" aria-hidden="true"></canvas>
+      <button id="rew-button" class="deck-btn" type="button" disabled aria-label="Rewind">◀◀</button>
+      <button id="fwd-button" class="deck-btn" type="button" disabled aria-label="Forward">▶▶</button>
+      <span id="time-readout" aria-hidden="true">0:00 / 0:39</span>
 
       <section class="records" aria-labelledby="records-title">
         <div class="section-label"><span class="section-number">01</span><div><h1 id="records-title">Choose a record</h1><p>Select a visualization to tune in. Audio begins with your selection.</p></div></div>
@@ -45,15 +51,15 @@
     </section>
 
       <section class="listening-panel" aria-labelledby="listening-title">
-        <div class="section-label compact"><span class="section-number">02</span><div><h2 id="listening-title">Shape your listening</h2><p>Choose a color or zone to isolate its data values.</p></div></div>
+        <div class="section-label compact"><span class="section-number">02</span><div><h2 id="listening-title">Tune what you hear</h2><p>Pick a strip of the map or a color range and the jukebox plays just that.</p></div></div>
         <div class="controls-row">
           <div class="zone-control"><label for="zone-select">Listen to a zone</label><select id="zone-select" disabled><option value="all">Whole frame</option><option value="north">North</option><option value="center">Center</option><option value="south">South</option></select></div>
           <div class="color-control"><span class="control-label">Listen to a color</span><div class="color-buttons" role="group" aria-label="Filter by color"><button type="button" class="color-button" data-color="all" aria-pressed="true" disabled><span class="color-dot all-dot" aria-hidden="true"></span>All</button><button type="button" class="color-button" data-color="warm" aria-pressed="false" disabled><span class="color-dot warm-dot" aria-hidden="true"></span>Warm</button><button type="button" class="color-button" data-color="cool" aria-pressed="false" disabled><span class="color-dot cool-dot" aria-hidden="true"></span>Cool</button></div></div>
-          <div class="transport" aria-label="Playback controls"><button class="transport-button" id="play-toggle" type="button" disabled aria-label="Pause audio">Ⅱ</button><button class="transport-button" id="restart-button" type="button" disabled aria-label="Restart visualization">↺</button><label class="volume-control" for="volume"><span>Volume</span><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume"></label><button class="motion-toggle" id="motion-toggle" type="button" aria-pressed="false">Reduce motion: off</button></div>
+          <div class="transport" aria-label="Playback controls"><button class="transport-button" id="play-toggle" type="button" disabled aria-label="Pause audio">Ⅱ</button><button class="transport-button" id="restart-button" type="button" disabled aria-label="Restart visualization">↺</button><input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="Timeline position" disabled><label class="volume-control" for="volume"><span>Volume</span><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume"></label><button class="motion-toggle" id="motion-toggle" type="button" aria-pressed="false">Reduce motion: off</button></div>
         </div>
-        <div class="mapping-note"><span aria-hidden="true">♪</span><p><strong>How to listen:</strong> data values map to a gentle pentatonic scale. Higher readings sound brighter and faster; anomalies add a soft bell-like texture.</p></div>
+        <div class="mapping-note"><p><strong>How it sounds:</strong> a yellow line sweeps the Earth from north to south, and every half second the jukebox plays what is under it, west to east. Stronger readings sound higher and big spikes ring like a little bell. Rewind and you hear the same notes backwards.</p></div>
       </section>
-      <footer class="machine-footer"><span>DESIGNED FOR EVERY LISTENER</span><span>USE TAB + ENTER TO EXPLORE</span><span>WEB AUDIO · NO INSTALL</span></footer>
+      <footer class="machine-footer"><span>Made for the NASA Space Apps Challenge · works with keyboard and screen readers</span></footer>
     <!-- <p class="page-note">An accessible experiment in listening to Earth observation data. Sample visualizations are illustrative.</p> -->
     <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
   </main>
