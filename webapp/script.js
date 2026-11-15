@@ -107,6 +107,8 @@
   function setPlaying(next) {
     if (next && !ensureAudio()) return;
     playing = next;
+    document.querySelectorAll('.record-card').forEach(button => button.classList.toggle('is-playing', playing && button.dataset.dataset === selected));
+    document.querySelectorAll('.record-indicator').forEach(indicator => indicator.classList.toggle('is-playing', playing && indicator.dataset.indicator === selected));
     playButton.textContent = playing ? 'Ⅱ' : '▶';
     playButton.setAttribute('aria-label', playing ? 'Pause audio' : 'Play audio');
     const focusPlay = document.querySelector('#focus-play');
