@@ -22,8 +22,15 @@
   pixelCanvas.width = 64; pixelCanvas.height = 36;
   const pixelContext = pixelCanvas.getContext('2d', { willReadFrequently: true });
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+  const pitch = v => 220 * Math.pow(2, scale[Math.round(Math.pow(v, .75) * (scale.length - 1))] / 12);
+  const levelOf = v => v > .5 ? 'high' : v > .25 ? 'elevated' : 'low';
+  const bandOf = row => row < ROWS / 3 ? 'north' : row < ROWS * 2 / 3 ? 'center' : 'south';
+  const GRID = 8, BLOCK = COLS / GRID; // el explorador por teclado divide el mapa en 8×8 regiones de 3×3 celdas
+  let narrate = true, cursor = null; // avisos hablados cada 8 s · región elegida en el explorador
+  let voiceOn = false, voices = [], welcomed = false; // voz propia de la página (ver say() al final)
 
-  function announce(message) { announcer.textContent = ''; requestAnimationFrame(() => { announcer.textContent = message; }); }
+  // Cada aviso va al lector de pantalla (región en vivo) y a la voz de la página. mode: ver say()
+  function announce(message, mode) { announcer.textContent = ''; requestAnimationFrame(() => { announcer.textContent = message; }); say(message, mode); }
   function resizeCanvas() {
     const rect = stage.getBoundingClientRect();
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -122,15 +129,17 @@
     const order = rate < 0 ? picks.slice().reverse() : picks, gap = .125 / Math.min(2, Math.abs(rate)), t0 = audio.currentTime + .02, items = [];
     order.forEach((idx, k) => {
       const v = prof.vals[idx], on = v >= .08 && passes(v); items.push({ c: prof.cols[idx], v, on });
-      if (on) voice(220 * Math.pow(2, scale[Math.round(Math.pow(v, .75) * (scale.length - 1))] / 12), t0 + k * gap, .09 + v * .12, v > .8);
+      if (on) voice(pitch(v), t0 + k * gap, .09 + v * .12, v > .8);
     });
     noteSet = { items, t0: performance.now(), gap: gap * 1000 };
     const mean = prof.vals.reduce((a, b) => a + b, 0) / n;
     if (droneF) droneF.frequency.setTargetAtTime(250 + mean * 1400, audio.currentTime, .4);
     if (i % 4 === 0) {
-      const level = mean > .5 ? 'high' : mean > .25 ? 'elevated' : 'low', lat = prof.r < ROWS / 3 ? 'north' : prof.r < ROWS * 2 / 3 ? 'center' : 'south';
-      document.querySelector('#data-readout').textContent = `${lat.toUpperCase()} · ${level.toUpperCase()} · ${Math.round(mean * 100)}%`;
-      if (i % 16 === 0) announce(`${d.title}, ${lat} band: ${level} readings, ${Math.round(mean * 100)} percent.`);
+      const level = levelOf(mean), lat = bandOf(prof.r);
+      // en minúsculas: el CSS lo muestra en mayúsculas y así el lector no deletrea las palabras
+      document.querySelector('#data-readout').textContent = `${lat} · ${level} · ${Math.round(mean * 100)}%`;
+      // mientras alguien explora el mapa con las flechas no lo interrumpimos
+      if (i % 16 === 0 && narrate && document.activeElement !== canvas) announce(`${d.title}, ${lat} band: ${level} readings, ${Math.round(mean * 100)} percent.`, 'idle');
     }
   }
   function setPlaying(next) {
@@ -148,7 +157,7 @@
   }
   function selectDataset(id) {
     const d = datasets[id]; if (!d) return;
-    selected = id; pos = 0; rate = 1; lastStep = -1; holding = false; noteSet = null; frame = 0; selectedZone = 'all'; colorFilter = 'all';
+    selected = id; pos = 0; rate = 1; lastStep = -1; holding = false; noteSet = null; frame = 0; selectedZone = 'all'; colorFilter = 'all'; cursor = null;
     document.querySelectorAll('.record-card').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.dataset === id)));
     document.querySelectorAll('.color-button').forEach(button => { button.disabled = false; button.setAttribute('aria-pressed', String(button.dataset.color === 'all')); });
     zone.disabled = false; zone.value = 'all'; playButton.disabled = false; restartButton.disabled = false;
@@ -158,16 +167,17 @@
     document.querySelector('#focus-play').disabled = false;
     document.querySelectorAll('[data-focus-color]').forEach(button => { button.disabled = false; button.setAttribute('aria-pressed', String(button.dataset.focusColor === 'all')); });
     stage.dataset.kind = d.kind; stage.classList.add('has-data');
-    document.querySelector('#screen-label').textContent = `NOW PLAYING · ${d.title.toUpperCase()}`;
+    canvas.hidden = false; canvas.tabIndex = 0;
+    document.querySelector('#screen-label').textContent = `Now playing · ${d.title}`;
     document.querySelector('#screen-index').textContent = id === 'carbon' ? '01' : id === 'wildfire' ? '02' : '03';
     document.querySelector('#stage-caption').textContent = `${d.title} · ${d.detail} · drag the globe or use ◀◀ ▶▶ to move through time`;
-    document.querySelector('#data-readout').textContent = 'TUNING IN…';
+    document.querySelector('#data-readout').textContent = 'Tuning in…';
+    document.title = `${d.title} · Earthmonizer`;
     video.pause();
     if (id !== 'carbon' && !tracks[id]) buildProcedural(id);
     resizeCanvas(); paint();
-    screen.classList.add('is-focused');
     setPlaying(true);
-    announce(`${d.title} selected. Audio started. Use the rewind and forward buttons, the timeline, or the left and right arrow keys to move through time. Press Escape to return.`);
+    openFocus(); // el lector lee el título y las instrucciones del diálogo al recibir el foco
   }
   document.querySelectorAll('.record-card').forEach(button => button.addEventListener('click', () => selectDataset(button.dataset.dataset)));
   document.querySelectorAll('.color-button').forEach(button => button.addEventListener('click', () => {
@@ -186,18 +196,38 @@
     document.querySelectorAll('.color-button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === colorFilter)));
     paint(); announce(`Listening to ${colorFilter === 'all' ? 'all colors' : `${colorFilter} tones`}.`);
   }));
-  playButton.addEventListener('click', () => setPlaying(!playing));
-  document.querySelector('#focus-play').addEventListener('click', () => setPlaying(!playing));
+  playButton.addEventListener('click', () => { setPlaying(!playing); announce(playing ? 'Audio playing.' : 'Audio paused.'); });
+  document.querySelector('#focus-play').addEventListener('click', () => { setPlaying(!playing); announce(playing ? 'Audio playing.' : 'Audio paused.'); });
   restartButton.addEventListener('click', () => { rate = 1; rewBtn.classList.remove('on'); fwdBtn.classList.remove('on'); seek(0); if (!playing) return; setPlaying(true); announce('Visualization and audio restarted.'); });
-  document.querySelector('#volume').addEventListener('input', e => { if (master) master.gain.setTargetAtTime(Number(e.target.value) / 100, audio.currentTime, .04); });
-  function returnToJukebox() { screen.classList.remove('is-focused'); announce('Returned to the jukebox controls.'); }
+  document.querySelector('#volume').addEventListener('input', e => {
+    e.target.setAttribute('aria-valuetext', `${e.target.value} percent`);
+    if (master) master.gain.setTargetAtTime(Number(e.target.value) / 100, audio.currentTime, .04);
+  });
+  document.querySelector('#volume').addEventListener('change', e => say(e.target.getAttribute('aria-valuetext')));
+  // La pantalla enfocada es un diálogo modal: lo de atrás queda inerte (ni Tab ni el lector llegan) y el foco vuelve al disco que la abrió.
+  const behind = [...document.querySelectorAll('.skip-link, .machine > :not(#screen-bezel), .listening-panel, .machine-footer')];
+  function openFocus() {
+    screen.classList.add('is-focused'); screen.setAttribute('role', 'dialog'); screen.setAttribute('aria-modal', 'true');
+    behind.forEach(el => { el.inert = true; });
+    screen.focus({ preventScroll: true });
+  }
+  function returnToJukebox() {
+    screen.classList.remove('is-focused'); screen.removeAttribute('role'); screen.removeAttribute('aria-modal');
+    behind.forEach(el => { el.inert = false; });
+    const opener = document.querySelector('.record-card[aria-pressed="true"]');
+    if (opener) opener.focus();
+    announce(`Returned to the jukebox controls.${playing ? ' Audio is still playing.' : ''}`, 'queue');
+  }
   document.querySelector('#return-button').addEventListener('click', returnToJukebox);
   document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#return-button')) { e.stopPropagation(); returnToJukebox(); } }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && screen.classList.contains('is-focused')) returnToJukebox(); });
-  document.querySelector('#motion-toggle').addEventListener('click', e => {
-    reducedMotion = !reducedMotion; e.currentTarget.setAttribute('aria-pressed', String(reducedMotion)); e.currentTarget.textContent = `Reduce motion: ${reducedMotion ? 'on' : 'off'}`;
-    paint();
-    announce(`Reduced motion ${reducedMotion ? 'on' : 'off'}.`);
+  const motionToggle = document.querySelector('#motion-toggle'), narrationToggle = document.querySelector('#narration-toggle');
+  function setReducedMotion(on) { reducedMotion = on; motionToggle.setAttribute('aria-pressed', String(on)); motionToggle.textContent = `Reduce motion: ${on ? 'on' : 'off'}`; paint(); }
+  motionToggle.addEventListener('click', () => { setReducedMotion(!reducedMotion); announce(`Reduced motion ${reducedMotion ? 'on' : 'off'}.`); });
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) setReducedMotion(true); // respeta la preferencia del sistema
+  narrationToggle.addEventListener('click', () => {
+    narrate = !narrate; narrationToggle.setAttribute('aria-pressed', String(narrate)); narrationToggle.textContent = `Spoken updates: ${narrate ? 'on' : 'off'}`;
+    announce(`Spoken updates ${narrate ? 'on' : 'off'}.`);
   });
   canvas.addEventListener('click', e => {
     if (!selected || selected === 'carbon' || dragged) return;
@@ -207,8 +237,6 @@
     if (playing) playStep(Math.floor(pos / STEP));
     announce(`${datasets[selected].title}, ${region} region, data value ${value} percent. Audio pitch reflects this value.`);
   });
-  canvas.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const b = stage.getBoundingClientRect(); canvas.dispatchEvent(new MouseEvent('click', { clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 })); } });
-  canvas.tabIndex = 0;
   window.addEventListener('resize', () => { resizeCanvas(); paint(); drawTrace(); });
   resizeCanvas();
 
@@ -217,6 +245,10 @@
   const rewBtn = document.querySelector('#rew-button'), fwdBtn = document.querySelector('#fwd-button');
   const timeEl = document.querySelector('#time-readout'), scrubbers = [...document.querySelectorAll('.scrubber')];
   const fmt = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
+  const spoken = n => { // "1:05" dicho en palabras, para los lectores de pantalla
+    const s = Math.floor(n), m = Math.floor(s / 60), r = s % 60, sec = `${r} second${r === 1 ? '' : 's'}`;
+    return m ? `${m} minute${m === 1 ? '' : 's'} ${sec}` : sec;
+  };
   const stepsN = () => Math.max(1, Math.floor(dur / STEP));
   let scrubbing = false, dragX = null;
 
@@ -249,6 +281,7 @@
         }
       }
       finish('carbon', out);
+      if (selected === 'carbon') announce('Carbon monoxide data ready.', 'queue');
     } catch { // el navegador bloqueó leer píxeles (p. ej. file://): curva sintética para que todo siga funcionando
       const out = new Float32Array(n0 * K); for (let i = 0; i < n0; i++) for (let j = 0; j < K; j++) out[i * K + j] = .5 + .3 * Math.sin(i * .35 + j * .9);
       finish('carbon', out);
@@ -302,6 +335,10 @@
       const lit = el >= k * noteSet.gap, x = px(it.c), yy = ly - it.v * amp;
       sctx.fillStyle = !it.on ? 'rgba(238,248,255,.35)' : lit ? '#ff5a2b' : '#eef8ff'; sctx.strokeStyle = '#282045'; sctx.lineWidth = Math.max(1, lw * .7);
       sctx.beginPath(); sctx.arc(x, yy, lw * (lit && it.on ? 2.6 : 1.7), 0, Math.PI * 2); sctx.fill(); sctx.stroke(); }); }
+    if (cursor && document.activeElement === canvas) { // casilla del explorador por teclado
+      const bw = (circle ? 2 * R : w) / GRID, bh = (circle ? 2 * R : h) / GRID, x0 = circle ? cx - R : 0, y0 = circle ? cy - R : 0;
+      sctx.strokeStyle = '#ffeb6c'; sctx.lineWidth = 2; sctx.setLineDash([5, 4]); sctx.strokeRect(x0 + cursor.c * bw, y0 + cursor.r * bh, bw, bh); sctx.setLineDash([]);
+    }
   }
   function syncView(fromTick) {
     if (selected === 'carbon') { if (!isNative() && !video.seeking && Math.abs(video.currentTime - pos) > .03) video.currentTime = pos; }
@@ -310,7 +347,13 @@
     if (i !== lastStep) { lastStep = i; if (playing || !fromTick) playStep(i); }
     drawTrace(); drawScan();
     timeEl.textContent = `${fmt(pos)} / ${fmt(dur)} · ${rate < 0 ? '◀◀' : '▶'} ${Math.abs(rate)}×${playing ? '' : ' · PAUSED'}`;
-    if (!scrubbing) scrubbers.forEach(x => { x.value = String(Math.round(pos / dur * 1000)); });
+    const said = `${spoken(pos)} of ${spoken(dur)}`;
+    if (!scrubbing) scrubbers.forEach(x => {
+      // con la barra enfocada solo se mueve una vez por segundo, si no el lector repite la posición sin parar
+      if (fromTick && x === document.activeElement && x.getAttribute('aria-valuetext') === said) return;
+      x.value = String(Math.round(pos / dur * 1000));
+      if (x.getAttribute('aria-valuetext') !== said) x.setAttribute('aria-valuetext', said);
+    });
   }
   function seek(p) { pos = ((p % dur) + dur) % dur; if (selected === 'carbon' && !video.seeking) video.currentTime = pos; if (selected) syncView(false); }
   function tick(ts) {
@@ -333,6 +376,13 @@
     x.addEventListener('pointerdown', () => { scrubbing = holding = true; });
     ['pointerup', 'change', 'blur'].forEach(ev => x.addEventListener(ev, () => { if (!scrubbing) return; scrubbing = holding = false; if (selected === 'carbon') video.currentTime = pos; }));
     x.addEventListener('input', () => seek(Number(x.value) / 1000 * dur));
+    // Con teclado la barra salta 2 s (10 s con RePág/AvPág); con sus 1000 pasos nativos cada flecha movía 0.04 s.
+    x.addEventListener('keydown', e => {
+      const jumps = { ArrowLeft: -2, ArrowDown: -2, ArrowRight: 2, ArrowUp: 2, PageDown: -10, PageUp: 10 };
+      if (e.key === 'Home') seek(0); else if (e.key === 'End') seek(dur - STEP); else if (e.key in jumps) seek(clamp(pos + jumps[e.key], 0, dur - STEP)); else return;
+      e.preventDefault();
+      say(x.getAttribute('aria-valuetext')); // el lector de pantalla ya lee el valor solo; la voz de la página no
+    });
   });
   // Arrastrar la Tierra: a la derecha avanza el tiempo, a la izquierda retrocede.
   stage.addEventListener('pointerdown', e => { if (selected) { dragX = e.clientX; dragged = false; } });
@@ -343,9 +393,118 @@
   const endDrag = () => { if (dragged) { holding = false; if (selected === 'carbon') video.currentTime = pos; } dragX = null; setTimeout(() => { dragged = false; }, 0); };
   window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
   document.addEventListener('keydown', e => {
-    if (!selected || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    // sin modificadores para no robar atajos como Alt+← (atrás); en el mapa las flechas son del explorador
+    if (!selected || e.altKey || e.ctrlKey || e.metaKey || e.target === canvas || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); seek(pos - 2); } else if (e.key === 'ArrowRight') { e.preventDefault(); seek(pos + 2); }
   });
+
+  /* ===== Explorador por teclado: con el mapa enfocado, las flechas lo recorren por regiones y cada una suena y se lee ===== */
+  const sideOf = col => col < COLS / 3 ? 'west' : col < COLS * 2 / 3 ? 'center' : 'east';
+  const percent = v => `${Math.round(v * 100)} percent`;
+  const capital = text => text[0].toUpperCase() + text.slice(1);
+  function average(r0, r1, c0, c1) { // promedio de las celdas (dentro de la Tierra) en el instante actual; null si no hay ninguna
+    const i = Math.floor(pos / STEP); let t = 0, k = 0;
+    for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) if (inside(selected, c, r)) { t += cell(selected, i, c, r); k++; }
+    return k ? t / k : null;
+  }
+  const blockValue = (r, c) => average(r * BLOCK, (r + 1) * BLOCK, c * BLOCK, (c + 1) * BLOCK);
+  const placeOf = (r, c) => { // como brújula: "north-west", "east", "center"…
+    const ns = bandOf((r + .5) * BLOCK), we = sideOf((c + .5) * BLOCK);
+    return ns === 'center' ? we : we === 'center' ? ns : `${ns}-${we}`;
+  };
+  function describeRegion() {
+    const { r, c } = cursor, v = blockValue(r, c), where = `${capital(placeOf(r, c))}. Row ${r + 1}, column ${c + 1}.`;
+    if (v === null) { announce(`Outside the Earth. ${where}`); return; }
+    if (ensureAudio()) voice(pitch(v), audio.currentTime + .01, .16, v > .8);
+    announce(`${percent(v)}, ${levelOf(v)}. ${where}`);
+  }
+  function describeMoment() {
+    const bands = ['north', 'center', 'south'].map((name, b) => {
+      const v = average(b * ROWS / 3, (b + 1) * ROWS / 3, 0, COLS); return v === null ? '' : ` ${capital(name)}: ${levelOf(v)}, ${percent(v)}.`;
+    }).join('');
+    let best = null;
+    for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) { const v = blockValue(r, c); if (v !== null && (!best || v > best.v)) best = { r, c, v }; }
+    announce(`${datasets[selected].title} at ${spoken(pos)} of ${spoken(dur)}${playing ? '' : ', paused'}.${bands}${best ? ` Strongest reading: ${placeOf(best.r, best.c)}, ${percent(best.v)}.` : ''}`);
+  }
+  canvas.addEventListener('keydown', e => {
+    const moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], Home: [0, -GRID], End: [0, GRID] };
+    if (!selected || e.altKey || e.ctrlKey || e.metaKey || !(e.key in moves || e.key === 'Enter' || e.key === ' ')) return;
+    e.preventDefault();
+    if (!tracks[selected]) { announce('Still reading the data, try again in a moment.'); return; }
+    if (e.key === 'Enter' || e.key === ' ') { describeMoment(); return; }
+    if (!cursor) { cursor = { r: GRID / 2 - 1, c: GRID / 2 - 1 }; describeRegion(); return; } // la primera tecla empieza cerca del centro
+    const [dr, dc] = moves[e.key], next = { r: clamp(cursor.r + dr, 0, GRID - 1), c: clamp(cursor.c + dc, 0, GRID - 1) };
+    if (next.r === cursor.r && next.c === cursor.c) { announce('Edge of the map.'); return; }
+    cursor = next; describeRegion();
+  });
+
+  /* ===== Voz propia de la página: lee en voz alta lo que recibe el foco y cada aviso, sin necesitar un lector de pantalla ===== */
+  const speech = window.speechSynthesis, voiceToggle = document.querySelector('#voice-toggle'), voiceSelect = document.querySelector('#voice-select');
+  const load = key => { try { return localStorage.getItem(key); } catch { return null; } };
+  const save = (key, value) => { try { localStorage.setItem(key, value); } catch { /* sin almacenamiento solo no se recuerda */ } };
+  const WELCOME = 'Welcome to Earthmonizer, a jukebox that turns Earth data into sound. This page reads itself aloud: press Tab to move, Enter to choose, and V to turn the voice off.';
+  // mode: 'interrupt' (por defecto) corta lo que esté diciendo, 'queue' espera su turno, 'idle' solo habla si está callada
+  function say(text, mode = 'interrupt') {
+    if (!voiceOn || !text || (mode === 'idle' && (speech.speaking || speech.pending))) return;
+    if (mode === 'interrupt') speech.cancel();
+    const utterance = new SpeechSynthesisUtterance(text.replace(/\s*·\s*/g, ', ')), voice = voices.find(v => v.voiceURI === voiceSelect.value);
+    utterance.lang = voice ? voice.lang : 'en-US';
+    if (voice) utterance.voice = voice;
+    speech.speak(utterance);
+  }
+  function loadVoices() {
+    // las que suenan más humanas primero: las "Natural" de Edge y las Premium de Apple, luego las de Google y las "Online"
+    const all = speech.getVoices(), english = all.filter(v => /^en/i.test(v.lang));
+    const quality = v => /natural|neural|premium|enhanced/i.test(v.name) ? 2 : /google|online/i.test(v.name) ? 1 : 0;
+    voices = (english.length ? english : all).sort((a, b) => quality(b) - quality(a) || a.name.localeCompare(b.name));
+    voiceSelect.replaceChildren(...(voices.length ? voices.map(v => new Option(`${v.name} (${v.lang})`, v.voiceURI)) : [new Option('No voices in this browser', '')]));
+    voiceSelect.disabled = !voices.length;
+    const saved = load('earthmonizer-voice-name');
+    if (voices.length) voiceSelect.value = voices.some(v => v.voiceURI === saved) ? saved : voices[0].voiceURI;
+  }
+  function setVoice(on) {
+    voiceOn = on; save('earthmonizer-voice', on ? 'on' : 'off');
+    voiceToggle.setAttribute('aria-pressed', String(on)); voiceToggle.textContent = `Page voice: ${on ? 'on' : 'off'}`;
+    if (!on) speech.cancel();
+  }
+  const toggleVoice = () => { setVoice(!voiceOn); announce(`Page voice ${voiceOn ? 'on' : 'off'}.`); };
+  // Lo que diría un lector de pantalla al llegar a un control: nombre, tipo y estado
+  const textOf = ids => ids.split(' ').map(id => (document.getElementById(id) || {}).textContent || '').join(' ');
+  function labelOf(el) {
+    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
+    if (el.getAttribute('aria-labelledby')) return textOf(el.getAttribute('aria-labelledby'));
+    if (el.labels && el.labels.length) { const label = el.labels[0].cloneNode(true); label.querySelectorAll('select, input').forEach(n => n.remove()); return label.textContent; }
+    return el.textContent;
+  }
+  function describe(el) {
+    const pressed = el.getAttribute('aria-pressed') === 'true';
+    let kind = el.getAttribute('aria-roledescription') || el.getAttribute('role') || '';
+    if (el.tagName === 'SELECT') kind = `${el.selectedOptions[0] ? el.selectedOptions[0].text : ''}, list`;
+    else if (el.type === 'range') kind = `${el.getAttribute('aria-valuetext') || el.value}, slider`;
+    else if (el.tagName === 'A') kind = 'link';
+    else if (el.tagName === 'BUTTON') kind = !el.hasAttribute('aria-pressed') ? 'button' : el.classList.contains('motion-toggle') ? `button, ${pressed ? 'on' : 'off'}` : `button${pressed ? ', selected' : ''}`;
+    const help = el.getAttribute('aria-describedby') ? ` ${textOf(el.getAttribute('aria-describedby'))}` : '';
+    return `${labelOf(el).replace(/\s+/g, ' ').trim()}${kind ? `, ${kind}` : ''}${el.disabled ? ', unavailable' : ''}.${help}`;
+  }
+  if (speech) {
+    loadVoices(); speech.addEventListener('voiceschanged', loadVoices);
+    setVoice(load('earthmonizer-voice') !== 'off');
+    voiceToggle.addEventListener('click', toggleVoice);
+    voiceSelect.addEventListener('change', () => { save('earthmonizer-voice-name', voiceSelect.value); say(`${voiceSelect.selectedOptions[0].text}. Hello, this is the voice of Earthmonizer.`); });
+    document.addEventListener('focusin', e => {
+      if (!voiceOn) return;
+      if (!welcomed) { welcomed = true; say(WELCOME); say(describe(e.target), 'queue'); return; } // la primera vez se presenta
+      say(describe(e.target));
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key.toLowerCase() !== 'v' || e.repeat || e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+      e.preventDefault(); toggleVoice();
+    });
+  } else { // navegador sin síntesis de voz: queda solo el lector de pantalla
+    voiceToggle.disabled = voiceSelect.disabled = true; voiceToggle.textContent = 'Page voice: unavailable';
+    voiceSelect.replaceChildren(new Option('Not supported in this browser', ''));
+  }
+
   video.addEventListener('loadedmetadata', () => { dur = video.duration || dur; });
   scanCarbon(); requestAnimationFrame(tick);
 })();

@@ -12,40 +12,46 @@
 <body>
   <a class="skip-link" href="#main">Skip to the jukebox</a>
   <main id="main" class="jukebox-shell">
+    <h1 class="sr-only">Earthmonizer: listen to our planet</h1>
     <section class="machine" aria-label="Earth Jukebox">
       <img class="machine-art" src="resources/jukebox.png" alt="" aria-hidden="true" width="2827" height="4039">
       <!-- <div class="machine-top"><span class="ornament" aria-hidden="true">✦ &nbsp; ✧ &nbsp; ✦</span><p>THE SOUND OF EARTH</p><span class="ornament" aria-hidden="true">✦ &nbsp; ✧ &nbsp; ✦</span></div> -->
-      <div class="screen-bezel" id="screen-bezel">
-        <div class="screen-heading"><span class="live-dot" aria-hidden="true"></span><span id="screen-label">NOW PLAYING · CHOOSE A DATASET</span><span class="screen-index" id="screen-index">00</span><button id="return-button" class="return-button" type="button">↙ Return to jukebox</button></div>
-        <div class="visual-stage" id="visual-stage" aria-label="Visualization display">
-          <video id="co-video" class="data-video" src="resources/carbon_monoxide.mp4" muted loop playsinline preload="metadata" aria-label="Carbon monoxide satellite visualization"></video>
-          <canvas id="data-canvas" role="img" aria-label="Interactive scientific data visualization. Choose a region to hear its value."></canvas>
+      <!-- Al elegir un disco la pantalla se vuelve un diálogo modal (role="dialog" lo pone script.js) -->
+      <div class="screen-bezel" id="screen-bezel" tabindex="-1" aria-labelledby="screen-label" aria-describedby="focus-help">
+        <div class="screen-heading"><span class="live-dot" aria-hidden="true"></span><span id="screen-label">Now playing · Choose a dataset</span><span class="screen-index" id="screen-index" aria-hidden="true">00</span><button id="return-button" class="return-button" type="button" aria-label="Return to jukebox">↙ Return to jukebox</button></div>
+        <div class="visual-stage" id="visual-stage" role="group" aria-label="Visualization display">
+          <video id="co-video" class="data-video" src="resources/carbon_monoxide.mp4" muted loop playsinline preload="metadata" aria-label="Carbon monoxide satellite visualization" aria-describedby="video-description"></video>
+          <canvas id="data-canvas" role="application" aria-roledescription="interactive map" aria-label="Map explorer" aria-describedby="explorer-help" hidden></canvas>
           <canvas id="scan-canvas" aria-hidden="true"></canvas>
           <div class="stage-placeholder" id="stage-placeholder"><strong>Nothing playing yet</strong><span>Press one of the orange keys to start.</span></div>
-          <div class="stage-caption" id="stage-caption" aria-live="polite">Select a dataset to hear it</div>
-          <div class="focus-controls" aria-label="Focused visualization controls">
+          <div class="stage-caption" id="stage-caption" aria-hidden="true">Select a dataset to hear it</div>
+          <!-- Textos para lectores de pantalla: no se ven, los leen aria-describedby -->
+          <p id="focus-help" hidden>Audio is playing. Press Tab to reach the zone, color, timeline and play controls, and the map explorer, where the arrow keys let you hear each region. Press Escape to return to the jukebox.</p>
+          <p id="explorer-help" hidden>The map is split into 8 rows from north to south and 8 columns from west to east. Use the arrow keys to move one region at a time, starting near the center: each region plays its note and reads its value, where higher notes mean stronger readings. Home and End jump to the west and east edges. Press Enter for a summary of the current moment.</p>
+          <p id="video-description" hidden>A dark globe turns slowly from Asia and Africa toward the Americas while a date counter runs from 14 January to 3 March 2020. Glowing orange patches mark carbon monoxide in the air. A dotted line sweeps the globe from north to south, and a yellow curve over it rises where the readings are stronger.</p>
+          <div class="focus-controls" role="group" aria-label="Player controls">
             <label for="focus-zone">Zone<select id="focus-zone" disabled><option value="all">Whole frame</option><option value="north">North</option><option value="center">Center</option><option value="south">South</option></select></label>
             <div class="focus-colors" role="group" aria-label="Listen to a color"><button type="button" data-focus-color="all" aria-pressed="true" disabled>All colors</button><button type="button" data-focus-color="warm" aria-pressed="false" disabled>Warm</button><button type="button" data-focus-color="cool" aria-pressed="false" disabled>Cool</button></div>
-            <input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="Timeline position" disabled><button class="focus-play" id="focus-play" type="button" disabled>Ⅱ Pause audio</button>
+            <input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="Timeline position" aria-valuetext="0 seconds of 39 seconds" disabled><button class="focus-play" id="focus-play" type="button" disabled>Ⅱ Pause audio</button>
           </div>
         </div>
-        <div class="screen-footer"><span>EARTH OBSERVATION DATA</span><span id="data-readout">WAITING FOR INPUT</span></div>
+        <div class="screen-footer"><span>EARTH OBSERVATION DATA</span><span id="data-readout">Waiting for input</span></div>
       </div>
 
       <canvas id="trace-canvas" aria-hidden="true"></canvas>
       <button id="rew-button" class="deck-btn" type="button" disabled aria-label="Rewind">◀◀</button>
-      <button id="fwd-button" class="deck-btn" type="button" disabled aria-label="Forward">▶▶</button>
+      <button id="fwd-button" class="deck-btn" type="button" disabled aria-label="Fast forward">▶▶</button>
       <span id="time-readout" aria-hidden="true">0:00 / 0:39</span>
 
       <section class="records" aria-labelledby="records-title">
-        <div class="section-label"><span class="section-number">01</span><div><h1 id="records-title">Choose a record</h1><p>Select a visualization to tune in. Audio begins with your selection.</p></div></div>
+        <div class="section-label"><span class="section-number">01</span><div><h2 id="records-title">Choose a record</h2><p>Select a visualization to tune in. Audio begins with your selection and the player opens on top of the page. Carbon monoxide comes from real satellite imagery; wildfire smoke and ocean temperature are illustrative samples. The page reads itself aloud with its own voice; press V to turn it on or off.</p></div></div>
         <div class="record-grid" role="group" aria-label="Earth observation visualizations">
           <span class="record-indicator" data-indicator="carbon" aria-hidden="true"></span>
           <span class="record-indicator" data-indicator="wildfire" aria-hidden="true"></span>
           <span class="record-indicator" data-indicator="ocean" aria-hidden="true"></span>
-          <button class="record-card" type="button" data-dataset="carbon" aria-label="Carbon monoxide" aria-pressed="false"><span class="record-number">A1</span><span class="record-swatch carbon-swatch" aria-hidden="true">◉</span><span class="record-copy"><strong>CO</strong><small>Atmospheric trace · satellite</small></span><span class="record-play" aria-hidden="true">▶</span></button>
-          <button class="record-card" type="button" data-dataset="wildfire" aria-label="Wildfire smoke" aria-pressed="false"><span class="record-number">A2</span><span class="record-swatch fire-swatch" aria-hidden="true">♨</span><span class="record-copy"><strong>Smoke</strong><small>Aerosol spread · sample data</small></span><span class="record-play" aria-hidden="true">▶</span></button>
-          <button class="record-card" type="button" data-dataset="ocean" aria-label="Ocean temperature" aria-pressed="false"><span class="record-number">A3</span><span class="record-swatch ocean-swatch" aria-hidden="true">≈</span><span class="record-copy"><strong>Ocean</strong><small>Sea surface · sample data</small></span><span class="record-play" aria-hidden="true">▶</span></button>
+          <button class="record-card" type="button" data-dataset="carbon" aria-label="Carbon monoxide, satellite visualization" aria-pressed="false"><span class="record-number">A1</span><span class="record-swatch carbon-swatch" aria-hidden="true">◉</span><span class="record-copy"><strong>CO</strong><small>Atmospheric trace · satellite</small></span><span class="record-play" aria-hidden="true">▶</span></button>
+          <button class="record-card" type="button" data-dataset="wildfire" aria-label="Wildfire smoke, sample data" aria-pressed="false"><span class="record-number">A2</span><span class="record-swatch fire-swatch" aria-hidden="true">♨</span><span class="record-copy"><strong>Smoke</strong><small>Aerosol spread · sample data</small></span><span class="record-play" aria-hidden="true">▶</span></button>
+          <button class="record-card" type="button" data-dataset="ocean" aria-label="Ocean temperature, sample data" aria-pressed="false"><span class="record-number">A3</span><span class="record-swatch ocean-swatch" aria-hidden="true">≈</span><span class="record-copy"><strong>Ocean</strong><small>Sea surface · sample data</small></span><span class="record-play" aria-hidden="true">▶</span></button>
         </div>
       </section>
     </section>
@@ -55,7 +61,8 @@
         <div class="controls-row">
           <div class="zone-control"><label for="zone-select">Listen to a zone</label><select id="zone-select" disabled><option value="all">Whole frame</option><option value="north">North</option><option value="center">Center</option><option value="south">South</option></select></div>
           <div class="color-control"><span class="control-label">Listen to a color</span><div class="color-buttons" role="group" aria-label="Filter by color"><button type="button" class="color-button" data-color="all" aria-pressed="true" disabled><span class="color-dot all-dot" aria-hidden="true"></span>All</button><button type="button" class="color-button" data-color="warm" aria-pressed="false" disabled><span class="color-dot warm-dot" aria-hidden="true"></span>Warm</button><button type="button" class="color-button" data-color="cool" aria-pressed="false" disabled><span class="color-dot cool-dot" aria-hidden="true"></span>Cool</button></div></div>
-          <div class="transport" aria-label="Playback controls"><button class="transport-button" id="play-toggle" type="button" disabled aria-label="Pause audio">Ⅱ</button><button class="transport-button" id="restart-button" type="button" disabled aria-label="Restart visualization">↺</button><input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="Timeline position" disabled><label class="volume-control" for="volume"><span>Volume</span><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume"></label><button class="motion-toggle" id="motion-toggle" type="button" aria-pressed="false">Reduce motion: off</button></div>
+          <div class="transport" role="group" aria-label="Playback controls"><button class="transport-button" id="play-toggle" type="button" disabled aria-label="Pause audio">Ⅱ</button><button class="transport-button" id="restart-button" type="button" disabled aria-label="Restart visualization">↺</button><input class="scrubber" type="range" min="0" max="1000" value="0" aria-label="Timeline position" aria-valuetext="0 seconds of 39 seconds" disabled><label class="volume-control" for="volume"><span>Volume</span><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume" aria-valuetext="35 percent"></label><button class="motion-toggle" id="motion-toggle" type="button" aria-pressed="false" aria-label="Reduce motion">Reduce motion: off</button></div>
+          <div class="voice-row" role="group" aria-label="Page voice settings"><div class="zone-control voice-control"><label for="voice-select">Page voice</label><select id="voice-select"><option value="">Loading voices…</option></select></div><button class="motion-toggle" id="voice-toggle" type="button" aria-pressed="true" aria-label="Page voice" aria-keyshortcuts="V">Page voice: on</button><button class="motion-toggle" id="narration-toggle" type="button" aria-pressed="true" aria-label="Spoken updates">Spoken updates: on</button></div>
         </div>
         <div class="mapping-note"><p><strong>How it sounds:</strong> a yellow line sweeps the Earth from north to south, and every half second the jukebox plays what is under it, west to east. Stronger readings sound higher and big spikes ring like a little bell. Rewind and you hear the same notes backwards.</p></div>
       </section>
