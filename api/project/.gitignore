@@ -1,3 +1,6 @@
 # Python
 __pycache__/
 *.py[cod]
+# Datos generados por la API
+uploads/
+*.db
