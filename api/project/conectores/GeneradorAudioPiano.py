@@ -16,13 +16,13 @@ TICKS_POR_SEGUNDO = TICKS_POR_NEGRA * 2  # a 120 bpm, una negra dura medio segun
 
 
 class GeneradorAudioPiano(GeneradorAudio):
-    """Piano del SoundFont FluidR3_GM, como ScriptsMusica/MusicaPython.py, pero renderizado a WAV."""
+    """Piano del SoundFont FluidR3_GM, como ScriptsMusica/Piano.py, pero renderizado a WAV."""
 
     def __init__(self, ruta_fluidsynth: str | None = None, ruta_soundfont: str | None = None):
         self.ruta_fluidsynth = ruta_fluidsynth or os.environ.get("FLUIDSYNTH") or buscarFluidsynth()
         self.ruta_soundfont = ruta_soundfont or os.environ.get("SOUNDFONT") or buscarSoundfont()
 
-    def generarAudio(self, notas: list[NotaMusical]) -> bytes:
+    def generarAudio(self, notas: list[NotaMusical], duracion_minima: float = 0) -> bytes:
         if not self.ruta_fluidsynth or not self.ruta_soundfont:
             raise ServicioNoDisponible(
                 "El piano necesita FluidSynth y el SoundFont FluidR3_GM.sf2 "
@@ -32,7 +32,7 @@ class GeneradorAudioPiano(GeneradorAudio):
         with tempfile.TemporaryDirectory() as carpeta:
             ruta_midi = Path(carpeta) / "notas.mid"
             ruta_wav = Path(carpeta) / "audio.wav"
-            ruta_midi.write_bytes(crearMidi(notas))
+            ruta_midi.write_bytes(crearMidi(notas, duracion_minima))
             try:
                 resultado = subprocess.run(
                     [self.ruta_fluidsynth, "-ni", "-q", "-g", "0.5", "-r", "44100", "-F", str(ruta_wav),
@@ -65,7 +65,7 @@ def buscarSoundfont() -> str | None:
     return None
 
 
-def crearMidi(notas: list[NotaMusical]) -> bytes:
+def crearMidi(notas: list[NotaMusical], duracion_minima: float = 0) -> bytes:
     """Arma un archivo MIDI de una pista con piano acústico (programa 0)."""
     eventos = []
     for nota in notas:
@@ -83,7 +83,8 @@ def crearMidi(notas: list[NotaMusical]) -> bytes:
         pista += longitudVariable(tick - tick_anterior) + mensaje
         tick_anterior = tick
     # un segundo extra antes de terminar para que se escuche cómo se apaga la última nota
-    pista += longitudVariable(TICKS_POR_SEGUNDO) + b"\xff\x2f\x00"
+    tick_final = max(tick_anterior + TICKS_POR_SEGUNDO, round(duracion_minima * TICKS_POR_SEGUNDO))
+    pista += longitudVariable(tick_final - tick_anterior) + b"\xff\x2f\x00"
 
     cabecera = b"MThd" + struct.pack(">IHHH", 6, 0, 1, TICKS_POR_NEGRA)
     return cabecera + b"MTrk" + struct.pack(">I", len(pista)) + bytes(pista)

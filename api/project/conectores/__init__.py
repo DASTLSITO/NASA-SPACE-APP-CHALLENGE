@@ -3,6 +3,7 @@ from .BaseDatosSQLite import BaseDatosSQLite
 from .GeneradorAudioPiano import GeneradorAudioPiano
 from .GeneradorAudioSintetizador import GeneradorAudioSintetizador
 from .LectorImagenPillow import LectorImagenPillow
+from .LectorVideoPyAV import LectorVideoPyAV
 from .RepositorioImagenesSQLite import RepositorioImagenesSQLite
 from .RepositorioMapeosSQLite import RepositorioMapeosSQLite
 
@@ -12,6 +13,7 @@ __all__ = [
     "GeneradorAudioPiano",
     "GeneradorAudioSintetizador",
     "LectorImagenPillow",
+    "LectorVideoPyAV",
     "RepositorioImagenesSQLite",
     "RepositorioMapeosSQLite",
 ]

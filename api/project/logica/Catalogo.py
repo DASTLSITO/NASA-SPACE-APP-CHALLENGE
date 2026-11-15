@@ -14,10 +14,23 @@ def propiedadesImagen(ancho: int, alto: int) -> list[PropiedadDisponible]:
     ]
 
 
+def propiedadesVideo(ancho: int, alto: int) -> list[PropiedadDisponible]:
+    """En un video cada región es una voz: X y Y son su centro, y lo demás su promedio en cada cuadro."""
+    return propiedadesImagen(ancho, alto) + [
+        PropiedadDisponible(
+            Nombre="Movimiento",
+            Descripcion="Cuánto cambia la región respecto al cuadro anterior, de 0 a 255 (suele quedar por debajo de 30)",
+            RangoMin=0,
+            RangoMax=255,
+        ),
+    ]
+
+
 PROPIEDADES_SONIDO = [
     PropiedadDisponible(
         Nombre="Duracion",
-        Descripcion="Segundo en que suena cada nota. Con X aquí la imagen se recorre de izquierda a derecha",
+        Descripcion="Segundo en que suena cada nota. Con X aquí la imagen se recorre de izquierda a derecha. "
+        "En videos no se usa: cada nota suena en el momento de su cuadro",
         RangoMin=0,
         RangoMax=10,
     ),

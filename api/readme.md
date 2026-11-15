@@ -56,6 +56,26 @@ la más grave). Por ejemplo, en Re mayor no hay Do, así que un Do suena como Si
 - `Tonica`: `Do`, `Reb`, `Re`, `Mib`, `Mi`, `Fa`, `Solb`, `Sol`, `Lab`, `La`, `Sib`, `Si` (Do por defecto). Van con bemoles
   porque el `#` corta la URL: Do# es `Reb`, Fa# es `Solb`, etc.
 
+## Videos
+
+Los videos se suben por el mismo `POST /imagenes` (hasta 200 MB), porque `Video` hereda de `Imagen`; la respuesta trae
+`DuracionEnSegundos`. `GET /imagenes/{id}/archivo` devuelve el archivo original para mostrarlo en un `<video>` o `<img>`.
+
+Un video se sonifica cuadro por cuadro. Cada región de `Regiones` es una voz: en cada cuadro se toma el color promedio de
+la región y cuánto cambió respecto al cuadro anterior (`Movimiento`, una propiedad que solo tienen los videos). Mientras
+una región dé la misma nota, esa nota se alarga en vez de repetirse. El audio dura lo mismo que el video.
+
+```
+GET /imagenes/1/sonificar?Regiones=0,0,640,1080&Regiones=1280,700,300,300&RangoAutomatico=true
+```
+
+- `Regiones`: `izquierda,arriba,ancho,alto` en píxeles del video, con 0,0 en la esquina superior izquierda. Hasta 20; sin
+  regiones se escucha el cuadro completo. `X` y `Y` de una región son su centro.
+- `RangoAutomatico=true` achica el rango de imagen de cada mapeo a los valores que de verdad aparecen en las regiones.
+  Sirve para videos oscuros: en el de monóxido de carbono el brillo promedio no pasa de 27, así que con el rango normal
+  (0 a 255) casi todo daría la misma nota.
+- `Duracion`, `AnchoCelda` y `AltoCelda` no se usan en videos.
+
 ## Piano
 
 Necesita FluidSynth y el SoundFont `FluidR3_GM.sf2`. Se buscan solos: `fluidsynth` en el PATH (en Windows también el

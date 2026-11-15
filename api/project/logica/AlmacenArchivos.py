@@ -8,3 +8,10 @@ class AlmacenArchivos(ABC):
 
     @abstractmethod
     def leerArchivo(self, file_path: str) -> bytes: ...
+
+    @abstractmethod
+    def rutaLocal(self, file_path: str) -> str:
+        """Ruta en disco del archivo, para leerlo por partes (videos) o servirlo tal cual."""
+
+    @abstractmethod
+    def eliminarArchivo(self, file_path: str) -> None: ...

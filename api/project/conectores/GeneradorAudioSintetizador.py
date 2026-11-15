@@ -9,10 +9,10 @@ FRECUENCIA_MUESTREO = 44100
 
 
 class GeneradorAudioSintetizador(GeneradorAudio):
-    """Ondas senoidales con suavizado, basado en ScriptsMusica/sonido.py."""
+    """Ondas senoidales con suavizado, basado en ScriptsMusica/Sintetizador.py."""
 
-    def generarAudio(self, notas: list[NotaMusical]) -> bytes:
-        duracion_total = max(nota.Inicio + nota.Duracion for nota in notas) + 0.1
+    def generarAudio(self, notas: list[NotaMusical], duracion_minima: float = 0) -> bytes:
+        duracion_total = max(max(nota.Inicio + nota.Duracion for nota in notas) + 0.1, duracion_minima)
         pista = np.zeros(int(duracion_total * FRECUENCIA_MUESTREO) + 1)
         for nota in notas:
             tono = crearTono(frecuenciaDeNota(nota.Nota), nota.Duracion) * nota.Volumen

@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from conectores import (
     AlmacenArchivosLocal,
@@ -12,6 +12,7 @@ from conectores import (
     GeneradorAudioPiano,
     GeneradorAudioSintetizador,
     LectorImagenPillow,
+    LectorVideoPyAV,
     RepositorioImagenesSQLite,
     RepositorioMapeosSQLite,
 )
@@ -28,7 +29,7 @@ from logica import (
     ServicioSonificacion,
     TipoInstrumento,
 )
-from modelos import Imagen
+from modelos import Imagen, Video
 
 CARPETA_PROYECTO = Path(__file__).resolve().parent
 RUTA_BASE_DATOS = Path(os.environ.get("SONIFICACION_BD", CARPETA_PROYECTO / "sonificacion.db"))
@@ -39,6 +40,7 @@ servicio_imagenes = ServicioImagenes(
     RepositorioImagenesSQLite(base_datos),
     AlmacenArchivosLocal(CARPETA_UPLOADS),
     LectorImagenPillow(),
+    LectorVideoPyAV(),
 )
 servicio_sonificacion = ServicioSonificacion(
     servicio_imagenes,
@@ -60,19 +62,27 @@ async def manejarErrorLogica(request: Request, error: ErrorLogica):
     return JSONResponse(status_code=CODIGOS_ERROR.get(type(error), 400), content={"detail": str(error)})
 
 
+# los videos son imágenes con DuracionEnSegundos (Video hereda de Imagen), así que comparten los endpoints
 @app.post("/imagenes", status_code=201)
-def subirImagen(archivo: Annotated[UploadFile, File()], descripcion: Annotated[str, Form()] = "") -> Imagen:
-    return servicio_imagenes.subirImagen(archivo.file.read(), descripcion)
+def subirImagen(archivo: Annotated[UploadFile, File()], descripcion: Annotated[str, Form()] = "") -> Video | Imagen:
+    """Sube una imagen (hasta 20 MB) o un video (hasta 200 MB)."""
+    return servicio_imagenes.subirImagen(archivo.file.read(), descripcion, archivo.filename or "")
 
 
 @app.get("/imagenes")
-def listarImagenes() -> list[Imagen]:
+def listarImagenes() -> list[Video | Imagen]:
     return servicio_imagenes.listarImagenes()
 
 
 @app.get("/imagenes/{imagen_id}")
-def obtenerImagen(imagen_id: int) -> Imagen:
+def obtenerImagen(imagen_id: int) -> Video | Imagen:
     return servicio_imagenes.obtenerImagen(imagen_id)
+
+
+@app.get("/imagenes/{imagen_id}/archivo", response_class=FileResponse)
+def obtenerArchivo(imagen_id: int) -> FileResponse:
+    """El archivo original, para mostrarlo en un <img> o <video>."""
+    return FileResponse(servicio_imagenes.obtenerRutaArchivo(imagen_id))
 
 
 @app.get("/imagenes/{imagen_id}/propiedades")
@@ -116,5 +126,7 @@ def eliminarMapeo(imagen_id: int, propiedad_sonido: str) -> list[Mapeo]:
     responses={200: {"content": {"audio/wav": {}}, "description": "Archivo WAV"}},
 )
 def sonificar(imagen_id: int, opciones: Annotated[OpcionesSonificacion, Query()]) -> Response:
+    """Imágenes: se recorren de izquierda a derecha en celdas de AnchoCelda x AltoCelda.
+    Videos: se recorren cuadro por cuadro y cada región de Regiones es una voz."""
     audio = servicio_sonificacion.sonificar(imagen_id, opciones)
     return Response(content=audio, media_type="audio/wav")

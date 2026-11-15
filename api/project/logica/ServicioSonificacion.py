@@ -1,8 +1,9 @@
 import bisect
 import colorsys
 import math
+from dataclasses import replace
 
-from modelos import PropiedadImagen, PropiedadSonido
+from modelos import PropiedadImagen, PropiedadSonido, Video
 
 from .Catalogo import ESCALAS, LIMITES_SONIDO, PROPIEDADES_SONIDO, SEMITONOS_NOTA, VALORES_SIN_MAPEO
 from .Errores import DatosInvalidos, NoEncontrado, ServicioNoDisponible
@@ -17,12 +18,14 @@ from .Tipos import (
     NotaMusical,
     OpcionesSonificacion,
     PropiedadDisponible,
+    Region,
     TipoEscala,
     TipoInstrumento,
 )
 
 DURACION_MINIMA_NOTA = 0.05
 MAXIMO_CELDAS = 2_000_000  # unos 20 segundos de proceso
+MAXIMO_REGIONES = 20
 
 
 class ServicioSonificacion:
@@ -83,6 +86,22 @@ class ServicioSonificacion:
         if generador is None:
             raise ServicioNoDisponible(f"El instrumento {opciones.Instrumento} no está configurado")
 
+        imagen = self.servicio_imagenes.obtenerImagen(imagen_id)
+        mapeos = {m.PropiedadSonido.Nombre: m for m in self.repositorio.obtenerMapeos(imagen_id)}
+        notas_escala = _notasDeEscala(opciones.Escala, opciones.Tonica)
+        if isinstance(imagen, Video):
+            notas = self._notasDeVideo(imagen_id, mapeos, notas_escala, opciones)
+        else:
+            notas = self._notasDeImagen(imagen_id, mapeos, notas_escala, opciones)
+        if not notas:
+            raise DatosInvalidos("Nada produjo sonido: baja UmbralBrillo o amplía los rangos de los mapeos")
+        # el audio de un video dura lo mismo que el video, para poder reproducirlos juntos
+        duracion_minima = imagen.DuracionEnSegundos if isinstance(imagen, Video) else 0
+        return generador.generarAudio(notas, duracion_minima)
+
+    def _notasDeImagen(
+        self, imagen_id: int, mapeos: dict[str, Mapeo], notas_escala: list[int], opciones: OpcionesSonificacion
+    ) -> list[NotaMusical]:
         info = self.servicio_imagenes.obtenerInfo(imagen_id)
         total_celdas = _totalCeldas(info.Ancho, info.Alto, opciones.AnchoCelda, opciones.AltoCelda)
         if total_celdas > MAXIMO_CELDAS:
@@ -93,7 +112,6 @@ class ServicioSonificacion:
                 f"Con celdas de {opciones.AnchoCelda}x{opciones.AltoCelda} px la imagen de {info.Ancho}x{info.Alto} "
                 f"da {total_celdas} celdas y el máximo es {MAXIMO_CELDAS}; usa celdas de al menos {lado}x{lado} px"
             )
-        mapeos = {m.PropiedadSonido.Nombre: m for m in self.repositorio.obtenerMapeos(imagen_id)}
         if "Duracion" not in mapeos:
             # sin mapeo de tiempo, la imagen se recorre de izquierda a derecha en 10 segundos (no se guarda)
             mapeos["Duracion"] = Mapeo(
@@ -103,7 +121,6 @@ class ServicioSonificacion:
                 PropiedadSonido=PropiedadSonido(ID=0, Nombre="Duracion", RangoMin=0, RangoMax=10),
             )
         duracion_nota = _duracionNota(mapeos["Duracion"], info.Ancho, info.Alto, opciones)
-        notas_escala = _notasDeEscala(opciones.Escala, opciones.Tonica)
 
         # las celdas que suenan a la vez con la misma nota (p. ej. de la misma columna) se tocan una sola vez,
         # con el volumen más alto; así una imagen grande con celdas chicas no genera miles de notas repetidas
@@ -112,27 +129,74 @@ class ServicioSonificacion:
             valores_imagen = _valoresDeCelda(celda)
             if valores_imagen["Brillo"] < opciones.UmbralBrillo:
                 continue
-            valores_sonido = dict(VALORES_SIN_MAPEO)
-            suena = True
-            for nombre_sonido, mapeo in mapeos.items():
-                valor = _escalar(valores_imagen[mapeo.PropiedadImagen.Nombre], mapeo.PropiedadImagen, mapeo.PropiedadSonido)
-                if valor is None:
-                    suena = False
-                    break
-                valores_sonido[nombre_sonido] = valor
-            if suena:
+            valores_sonido = _aplicarMapeos(valores_imagen, mapeos)
+            if valores_sonido is not None:
                 clave = (valores_sonido["Duracion"], _ajustarAEscala(valores_sonido["Nota"], notas_escala))
                 volumenes[clave] = max(volumenes.get(clave, 0), valores_sonido["Volumen"])
 
-        if not volumenes:
-            raise DatosInvalidos(
-                "Ninguna parte de la imagen produjo sonido: baja UmbralBrillo o amplía los rangos de los mapeos"
-            )
-        notas = [
+        return [
             NotaMusical(Inicio=inicio, Duracion=duracion_nota, Nota=nota, Volumen=volumen)
             for (inicio, nota), volumen in volumenes.items()
         ]
-        return generador.generarAudio(notas)
+
+    def _notasDeVideo(
+        self, imagen_id: int, mapeos: dict[str, Mapeo], notas_escala: list[int], opciones: OpcionesSonificacion
+    ) -> list[NotaMusical]:
+        """Cada región es una voz que suena cuadro por cuadro según su color promedio y su movimiento."""
+        info = self.servicio_imagenes.obtenerInfoVideo(imagen_id)
+        regiones = _leerRegiones(opciones.Regiones, info.Ancho, info.Alto)
+        centros = [(r.Izquierda + r.Ancho / 2, info.Alto - (r.Arriba + r.Alto / 2)) for r in regiones]
+        # en un video cada nota suena en el momento de su cuadro, así que Duracion no se usa
+        mapeos = {nombre: mapeo for nombre, mapeo in mapeos.items() if nombre != "Duracion"}
+        duracion_cuadro = 1 / info.CuadrosPorSegundo
+
+        # primero se leen todos los cuadros (None si la región está más oscura que el umbral),
+        # porque RangoAutomatico necesita conocer los valores de todo el video antes de convertirlos en notas
+        cuadros = []
+        for cuadro in self.servicio_imagenes.obtenerCuadros(imagen_id, regiones):
+            valores_regiones = []
+            for (x, y), color in zip(centros, cuadro.Regiones):
+                valores = _valoresDeCelda(Celda(X=x, Y=y, Rojo=color.Rojo, Verde=color.Verde, Azul=color.Azul))
+                valores["Movimiento"] = color.Movimiento
+                valores_regiones.append(valores if valores["Brillo"] >= opciones.UmbralBrillo else None)
+            cuadros.append((cuadro.Tiempo, valores_regiones))
+        if opciones.RangoAutomatico:
+            mapeos = _rangosObservados(mapeos, [v for _, valores in cuadros for v in valores if v is not None])
+
+        # mientras una región siga dando la misma nota, esa nota se alarga en vez de volver a tocarse en cada cuadro
+        notas = []
+        sonando: dict[int, NotaMusical] = {}
+        for tiempo, valores_regiones in cuadros:
+            fin = tiempo + duracion_cuadro
+            for indice, valores_imagen in enumerate(valores_regiones):
+                valores_sonido = None if valores_imagen is None else _aplicarMapeos(valores_imagen, mapeos)
+                nota = None if valores_sonido is None else _ajustarAEscala(valores_sonido["Nota"], notas_escala)
+
+                anterior = sonando.get(indice)
+                if anterior is not None and anterior.Nota == nota:
+                    volumen = max(anterior.Volumen, valores_sonido["Volumen"])
+                    sonando[indice] = replace(anterior, Duracion=fin - anterior.Inicio, Volumen=volumen)
+                    continue
+                if anterior is not None:
+                    notas.append(sonando.pop(indice))
+                if nota is not None:
+                    sonando[indice] = NotaMusical(
+                        Inicio=tiempo, Duracion=duracion_cuadro, Nota=nota, Volumen=valores_sonido["Volumen"]
+                    )
+        return notas + list(sonando.values())
+
+
+def _rangosObservados(mapeos: dict[str, Mapeo], valores: list[dict[str, float]]) -> dict[str, Mapeo]:
+    """Achica el rango de imagen de cada mapeo al mínimo y máximo que de verdad aparecen dentro de él.
+    Lo que estaba fuera del rango sigue fuera, así que sigue sin sonar."""
+    ajustados = {}
+    for nombre, mapeo in mapeos.items():
+        propiedad = mapeo.PropiedadImagen
+        observados = [v[propiedad.Nombre] for v in valores if propiedad.RangoMin <= v[propiedad.Nombre] <= propiedad.RangoMax]
+        if observados:
+            propiedad = propiedad.model_copy(update={"RangoMin": min(observados), "RangoMax": max(observados)})
+        ajustados[nombre] = mapeo.model_copy(update={"PropiedadImagen": propiedad})
+    return ajustados
 
 
 def _validarEntrada(entrada: MapeoEntrada, propiedades_imagen: dict[str, PropiedadDisponible], imagen_id: int) -> Mapeo:
@@ -184,6 +248,37 @@ def _ajustarAEscala(nota: float, notas_escala: list[int]) -> int:
     i = bisect.bisect_left(notas_escala, nota)
     vecinas = notas_escala[max(0, i - 1) : i + 1]
     return min(vecinas, key=lambda vecina: (abs(vecina - nota), vecina))
+
+
+def _leerRegiones(textos: list[str], ancho: int, alto: int) -> list[Region]:
+    """Convierte cada 'izquierda,arriba,ancho,alto' en una Region recortada a los bordes del video."""
+    if not textos:
+        return [Region(Izquierda=0, Arriba=0, Ancho=ancho, Alto=alto)]
+    if len(textos) > MAXIMO_REGIONES:
+        raise DatosInvalidos(f"Se pueden escuchar como máximo {MAXIMO_REGIONES} regiones a la vez")
+    regiones = []
+    for texto in textos:
+        try:
+            izquierda, arriba, ancho_region, alto_region = (round(float(valor)) for valor in texto.split(","))
+        except (ValueError, OverflowError):
+            raise DatosInvalidos(f"Región inválida: '{texto}'. Usa 'izquierda,arriba,ancho,alto' en píxeles") from None
+        x0, y0 = max(0, izquierda), max(0, arriba)
+        x1, y1 = min(ancho, izquierda + ancho_region), min(alto, arriba + alto_region)
+        if x1 <= x0 or y1 <= y0:
+            raise DatosInvalidos(f"La región '{texto}' no tiene tamaño o queda fuera del video de {ancho}x{alto}")
+        regiones.append(Region(Izquierda=x0, Arriba=y0, Ancho=x1 - x0, Alto=y1 - y0))
+    return regiones
+
+
+def _aplicarMapeos(valores_imagen: dict[str, float], mapeos: dict[str, Mapeo]) -> dict[str, float] | None:
+    """Convierte los valores de imagen en valores de sonido. Devuelve None si alguno queda fuera de su rango (no suena)."""
+    valores_sonido = dict(VALORES_SIN_MAPEO)
+    for nombre_sonido, mapeo in mapeos.items():
+        valor = _escalar(valores_imagen[mapeo.PropiedadImagen.Nombre], mapeo.PropiedadImagen, mapeo.PropiedadSonido)
+        if valor is None:
+            return None
+        valores_sonido[nombre_sonido] = valor
+    return valores_sonido
 
 
 def _totalCeldas(ancho: int, alto: int, ancho_celda: int, alto_celda: int) -> int:
