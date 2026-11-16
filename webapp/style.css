@@ -272,12 +272,14 @@ select:disabled {
   display: none;
 }
 
-.visual-stage[data-kind="carbon"] .data-video {
+.visual-stage[data-kind="carbon"] .data-video,
+.visual-stage[data-kind="lightning"] .data-video {
   display: block;
 }
 
 /* Con el video, el lienzo queda transparente encima: es el explorador por teclado del mapa */
-.visual-stage[data-kind="carbon"] #data-canvas {
+.visual-stage[data-kind="carbon"] #data-canvas,
+.visual-stage[data-kind="lightning"] #data-canvas {
   cursor: inherit;
 }
 
@@ -412,6 +414,7 @@ select:disabled {
 
 .focus-colors {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -521,10 +524,13 @@ select:disabled {
   color: #ffc082;
 }
 
-.ocean-swatch {
-  background: #233f68;
-  color: #91c6ff;
+.lightning-swatch {
+  background: #5b4c1d;
+  color: #ffe86d;
 }
+
+.general-color-option[hidden],
+.aerosol-color-option[hidden] { display: none !important; }
 
 .record-copy {
   display: flex;
@@ -898,7 +904,7 @@ select:disabled {
 /* El marco conserva la proporción original del PNG; nunca recorta ni repite la imagen. */
 .machine {
   width: 100vw;
-  aspect-ratio: 2827 / 4039;
+  aspect-ratio: 2827 / 3750;
   height: auto;
   margin: 0 auto;
   padding: 0;
@@ -926,10 +932,10 @@ select:disabled {
 .screen-bezel {
   position: absolute;
   z-index: 2;
-  top: 16.9%;
+  top: 18.2%;
   left: 50.35%;
-  width: 36.3%;
-  height: 14.8%;
+  width: 36.2%;
+  height: 16%;
   max-width: none;
   margin: 0;
   padding: 0;
@@ -992,6 +998,15 @@ select:disabled {
 .screen-bezel.is-focused .screen-heading,
 .screen-bezel.is-focused .screen-footer { position: relative; inset: auto; height: auto; min-height: 32px; flex-shrink: 0; }
 .screen-bezel.is-focused .stage-caption { bottom: 16px; left: 16px; font-size: 13px; }
+
+/* Al expandir Aerosol, el marco del mapa conserva la proporción de la imagen completa. */
+.screen-bezel.is-focused .visual-stage[data-kind="wildfire"] {
+  flex: 0 0 auto;
+  align-self: center;
+  width: min(100%, 140vh);
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
 
 /* Los tres selectores cubren las teclas dibujadas y mantienen un área táctil amplia. */
 .records {
@@ -1059,43 +1074,46 @@ select:disabled {
 .record-grid { top: 0; left: 0; width: 100%; height: 100%; display: block; }
 .record-card {
   position: absolute;
-  top: 35.45%;
-  width: max-content;
-  max-width: 12%;
-  min-height: 44px;
-  height: auto;
-  padding: 7px 11px;
+  top: 38.17%;
+  width: 10.36%;
+  max-width: none;
+  min-height: 0;
+  height: 1.973%;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   transform: translate(-50%, -50%);
 }
-.record-card:nth-of-type(1) { left: 36.6%; }
-.record-card:nth-of-type(2) { left: 52.5%; }
-.record-card:nth-of-type(3) { left: 68.8%; }
-.record-card:hover { transform: translate(-50%, calc(-50% - 2px)); }
-.record-card[aria-pressed="true"] { transform: translate(-50%, -50%); background: #b63f16; }
+.record-card:nth-of-type(1) { left: 36.62%; }
+.record-card:nth-of-type(2) { left: 52.51%; }
+.record-card:nth-of-type(3) { left: 68.75%; }
+.record-card:hover { transform: translate(-50%, -50%); }
+.record-card[aria-pressed="true"] { transform: translate(-50%, -50%); border: 0; background: #b63f16; box-shadow: none; }
 .record-indicator {
   position: absolute;
   z-index: 5;
-  width: 2.8%;
-  height: 1.4%;
+  width: 3.08%;
+  height: 1.49%;
   border-radius: 50%;
   background: #ce460e;
   pointer-events: none;
   transform: translate(-50%, -50%);
   transition: background-color .16s ease, box-shadow .16s ease;
 }
-.record-indicator[data-indicator="carbon"] { left: 28.4%; top: 35.45%; }
-.record-indicator[data-indicator="wildfire"] { left: 44.7%; top: 35.45%; }
-.record-indicator[data-indicator="ocean"] { left: 60.7%; top: 35.45%; }
+.record-indicator[data-indicator="carbon"] { left: 28.37%; top: 38.18%; }
+.record-indicator[data-indicator="wildfire"] { left: 44.72%; top: 38.18%; }
+.record-indicator[data-indicator="lightning"] { left: 60.4%; top: 38.18%; }
 .record-indicator.is-playing { background: #090909; box-shadow: 0 0 0 1px #f1e8de; }
 
 /* ===== Línea de tiempo: línea en vivo, ◀◀ ▶▶ y reloj sobre los huecos del dibujo ===== */
-#trace-canvas { position: absolute; z-index: 3; left: 33.5%; top: 45.2%; width: 33.5%; height: 5.2%; pointer-events: none; }
-.deck-btn { position: absolute; z-index: 5; top: 53.5%; width: 9.1%; height: 3.3%; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #282045; font: 800 clamp(8px, 1.6vw, 15px)/1 Arial, sans-serif; cursor: pointer; }
+#trace-canvas { position: absolute; z-index: 3; left: 33.53%; top: 48.72%; width: 33.53%; height: 5.57%; pointer-events: none; }
+.deck-btn { position: absolute; z-index: 5; top: 57.93%; width: 6.23%; height: 2.85%; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #282045; font: 800 clamp(8px, 1.6vw, 15px)/1 Arial, sans-serif; cursor: pointer; }
 .deck-btn:disabled { cursor: default; opacity: .55; }
 .deck-btn:not(:disabled):hover { background: rgba(255, 235, 108, .3); }
 .deck-btn.on { background: rgba(255, 235, 108, .55); box-shadow: inset 0 0 0 2px #282045; }
-#rew-button { left: 27.2%; } #fwd-button { left: 64.2%; }
-#time-readout { position: absolute; z-index: 3; left: 42%; top: 54.3%; width: 17%; height: 2.3%; display: flex; align-items: center; justify-content: center; color: #ffeb6c; font: 700 clamp(6px, 1.25vw, 12px)/1 'Courier New', monospace; white-space: nowrap; pointer-events: none; }
+#rew-button { left: 28.66%; } #fwd-button { left: 65.69%; }
+#time-readout { position: absolute; z-index: 3; left: 41.88%; top: 58.56%; width: 17.16%; height: 2.56%; display: flex; align-items: center; justify-content: center; color: #ffeb6c; font: 700 clamp(6px, 1.25vw, 12px)/1 'Courier New', monospace; white-space: nowrap; pointer-events: none; }
 .scrubber { flex: 1 1 140px; min-width: 120px; accent-color: #ca4710; }
 .scrubber:disabled { opacity: .5; }
 
